@@ -76,14 +76,7 @@ export class EventsClient extends BaseClient {
     super(config)
   }
 
-  /**
-   * Ingest usage event in a CloudEvents format
-   * @see https://cloudevents.io
-   */
-  public async ingest(
-    usageEvent: Event,
-    options?: RequestOptions
-  ): Promise<void> {
+  private mkEvent(usageEvent: Event): CloudEvents {
     if (
       usageEvent.datacontenttype &&
       usageEvent.datacontenttype !== 'application/json'
@@ -94,7 +87,7 @@ export class EventsClient extends BaseClient {
     }
 
     // We default where we can to lower the barrier to use CloudEvents
-    const body: CloudEvents = {
+    return {
       specversion: usageEvent.specversion ?? '1.0',
       id: usageEvent.id ?? crypto.randomUUID(),
       source: usageEvent.source ?? '@openmeter/sdk',
@@ -105,6 +98,17 @@ export class EventsClient extends BaseClient {
       dataschema: usageEvent.dataschema,
       data: usageEvent.data,
     }
+  }
+
+  /**
+   * Ingest usage event in a CloudEvents format
+   * @see https://cloudevents.io
+   */
+  public async ingest(
+    usageEvent: Event,
+    options?: RequestOptions
+  ): Promise<void> {
+    const body = this.mkEvent(usageEvent)
 
     // Making Request
     return await this.request({
@@ -113,6 +117,28 @@ export class EventsClient extends BaseClient {
       body: JSON.stringify(body),
       headers: {
         'Content-Type': 'application/cloudevents+json',
+      },
+      options,
+    })
+  }
+
+  /**
+   * Batch ingest usage in a CloudEvents format
+   * @see https://cloudevents.io
+   */
+  public async ingestBatch(
+    usageEvents: Event[],
+    options?: RequestOptions
+  ): Promise<void> {
+    const body = usageEvents.map(event => this.mkEvent(event))
+
+    // Making Request
+    return await this.request({
+      path: '/api/v1/events',
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: {
+        'Content-Type': 'application/cloudevents-batch+json',
       },
       options,
     })
